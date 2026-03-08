@@ -1,0 +1,29 @@
+{
+  "name": "claude-grocery",
+  "version": "1.0.0",
+  "description": "Claude Desktop MCP server for weekly meal planning with Colorado grocery delivery integration (King Soopers, Safeway, Walmart)",
+  "type": "module",
+  "main": "server/dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node server/dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "inspect": "npx @modelcontextprotocol/inspector node server/dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "better-sqlite3": "^11.8.1",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.13.10",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
+  },
+  "license": "MIT"
+}

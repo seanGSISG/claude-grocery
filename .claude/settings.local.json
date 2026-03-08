@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__context7__resolve-library-id",
+      "mcp__grep__searchGitHub",
+      "mcp__context7__query-docs",
+      "mcp__9a9e0e41-0b42-4004-8c64-b50982cac70b__tavily_search",
+      "mcp__9a9e0e41-0b42-4004-8c64-b50982cac70b__tavily_extract",
+      "mcp__exa_websearch__web_search_exa",
+      "mcp__exa_websearch__get_code_context_exa"
+    ]
+  }
+}

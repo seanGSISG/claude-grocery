@@ -1,0 +1,69 @@
+{
+  "mcpb_version": "0.1",
+  "name": "claude-grocery",
+  "display_name": "Claude Grocery - Weekly Meal Planner",
+  "version": "1.0.0",
+  "description": "Plan weekly meals, generate smart shopping lists, and order from King Soopers, Safeway (Instacart), or Walmart. Built for Colorado.",
+  "long_description": "Claude Grocery helps you plan a full week of meals for your household, automatically generates consolidated grocery lists with ingredient deduplication and unit normalization, estimates costs using real store pricing, and connects directly to King Soopers (Kroger API), Safeway (via Instacart), or Walmart for seamless ordering. Supports dietary restrictions, allergies, household sizing, pantry staple management, and budget tracking.",
+  "author": {
+    "name": "Claude Grocery"
+  },
+  "license": "MIT",
+  "server": {
+    "type": "node",
+    "entry_point": "server/dist/index.js"
+  },
+  "tools": [
+    "create_meal_plan",
+    "set_meal_slot",
+    "get_meal_plan",
+    "delete_meal_plan",
+    "save_recipe",
+    "import_recipe_from_url",
+    "search_recipes",
+    "generate_grocery_list",
+    "modify_grocery_list",
+    "search_kroger_products",
+    "add_to_kroger_cart",
+    "create_instacart_list",
+    "generate_walmart_links",
+    "find_nearby_stores",
+    "manage_pantry",
+    "manage_household",
+    "estimate_budget"
+  ],
+  "user_config": {
+    "zip_code": {
+      "type": "string",
+      "title": "ZIP Code",
+      "description": "Your Colorado ZIP code for finding nearby stores",
+      "required": true
+    },
+    "kroger_client_id": {
+      "type": "string",
+      "title": "Kroger Client ID",
+      "description": "Client ID from developer.kroger.com (free). Required for King Soopers integration.",
+      "required": false
+    },
+    "kroger_client_secret": {
+      "type": "string",
+      "title": "Kroger Client Secret",
+      "description": "Client Secret from developer.kroger.com",
+      "sensitive": true,
+      "required": false
+    },
+    "instacart_api_key": {
+      "type": "string",
+      "title": "Instacart API Key",
+      "description": "API key from Instacart Developer Platform. Required for Safeway and other Instacart-supported stores.",
+      "sensitive": true,
+      "required": false
+    },
+    "walmart_affiliate_id": {
+      "type": "string",
+      "title": "Walmart Affiliate ID (Optional)",
+      "description": "Impact Radius affiliate tag for Walmart links",
+      "required": false
+    }
+  }
+}
