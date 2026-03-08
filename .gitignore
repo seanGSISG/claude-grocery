@@ -5,3 +5,4 @@ server/dist/
 *.db-shm
 .env
 .env.*
+.claude/.tmp/*

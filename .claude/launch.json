@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mcp-inspector",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "npx", "@modelcontextprotocol/inspector@latest", "node", "--env-file=.env", "server/dist/index.js"],
+      "port": 6274
+    }
+  ]
+}

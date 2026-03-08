@@ -10,15 +10,18 @@
     "start": "node server/dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "inspect": "npx @modelcontextprotocol/inspector node server/dist/index.js"
+    "inspect": "npx @modelcontextprotocol/inspector node server/dist/index.js",
+    "inspect:dev": "npx @modelcontextprotocol/inspector node --env-file=.env server/dist/index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
     "better-sqlite3": "^11.8.1",
     "uuid": "^11.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@modelcontextprotocol/inspector": "^0.21.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.13.10",
     "@types/uuid": "^10.0.0",
