@@ -1,7 +1,10 @@
 /**
- * Kroger API client for product search and store location lookup.
+ * Kroger API client for product search, store location lookup, cart, and identity.
  *
- * All endpoints require a bearer token obtained via KrogerAuth.
+ * Products and Locations endpoints use a client-credentials bearer token.
+ * Cart and Identity endpoints require a customer-level bearer token obtained
+ * via the Authorization Code flow.
+ *
  * Docs: https://developer.kroger.com/documentation/api
  */
 
@@ -10,27 +13,63 @@ import type { KrogerAuth } from './kroger-auth.js';
 import type {
   KrogerProduct,
   KrogerProductSearchResponse,
+  KrogerProductDetailResponse,
   KrogerLocation,
   KrogerLocationSearchResponse,
+  KrogerLocationDetailResponse,
+  KrogerChain,
+  KrogerChainsResponse,
+  KrogerChainDetailResponse,
+  KrogerDepartment,
+  KrogerDepartmentsResponse,
+  KrogerDepartmentDetailResponse,
+  KrogerCartItem,
+  KrogerCartAddRequest,
+  KrogerIdentityProfile,
 } from './kroger-types.js';
 
 const BASE_URL = 'https://api.kroger.com/v1';
 
-/** Default chain for Colorado users. */
-const DEFAULT_CHAIN = 'KingSoopers';
+// ---------------------------------------------------------------------------
+// Search parameter interfaces
+// ---------------------------------------------------------------------------
 
-export interface ProductSearchOptions {
-  term: string;
-  locationId: string;
+export interface ProductSearchParams {
+  /** Search term (min 3 chars, max 8 words). */
+  term?: string;
+  /** Kroger location ID (8 chars) -- required for price/availability/aisle data. */
+  locationId?: string;
+  /** Product ID (13 chars) to search by specific product. */
+  productId?: string;
+  /** Brand name (case-sensitive, pipe-separated for multiple). */
+  brand?: string;
+  /** Fulfillment filter: ais (in-store), csp (curbside), dth (delivery), sth (ship-to-home). */
+  fulfillment?: 'ais' | 'csp' | 'dth' | 'sth';
+  /** Start offset for pagination (1-250). */
+  start?: number;
+  /** Results limit (1-50, default 10). */
   limit?: number;
-  fulfillment?: 'ais' | 'csp' | 'dth' | 'sth'; // in-store, curbside, delivery, ship-to-home
 }
 
-export interface LocationSearchOptions {
-  zipCode: string;
-  radiusMiles?: number;
-  chain?: string;
+export interface LocationSearchParams {
+  /** Zip code to search near. */
+  zipCode?: string;
+  /** Comma-separated latitude,longitude string. */
+  latLong?: string;
+  /** Latitude (use with lon). */
+  lat?: number;
+  /** Longitude (use with lat). */
+  lon?: number;
+  /** Search radius in miles (1-100, default 10). */
+  radiusInMiles?: number;
+  /** Results limit (1-200, default 10). */
   limit?: number;
+  /** Filter by chain name. */
+  chain?: string;
+  /** Filter by department ID. */
+  department?: string;
+  /** Filter by specific location ID. */
+  locationId?: string;
 }
 
 /** Simplified product result returned by convenience helpers. */
@@ -40,13 +79,16 @@ export interface ProductResult {
   description: string;
   brand: string;
   price: number | null;
+  promoPrice: number | null;
   size: string | null;
   aisle: string | null;
   imageUrl: string | null;
+  inStock: boolean | null;
   fulfillment: {
     inStore: boolean;
     curbside: boolean;
     delivery: boolean;
+    shipToHome: boolean;
   } | null;
 }
 
@@ -62,45 +104,42 @@ export class KrogerClient {
   // ---------------------------------------------------------------------------
 
   /**
-   * Search for products at a specific location.
+   * Search for products using official /v1/products endpoint.
+   * At least one of term, productId, or brand must be provided.
    */
-  async searchProducts(
-    term: string,
-    locationId: string,
-    limit: number = 10,
-    fulfillment?: 'ais' | 'csp' | 'dth' | 'sth'
-  ): Promise<ProductResult[]> {
-    const params = new URLSearchParams({
-      'filter.term': term,
-      'filter.locationId': locationId,
-      'filter.limit': String(limit),
-    });
+  async searchProducts(params: ProductSearchParams): Promise<ProductResult[]> {
+    const query = new URLSearchParams();
 
-    if (fulfillment) {
-      params.set('filter.fulfillment', fulfillment);
-    }
+    if (params.term) query.set('filter.term', params.term);
+    if (params.locationId) query.set('filter.locationId', params.locationId);
+    if (params.productId) query.set('filter.productId', params.productId);
+    if (params.brand) query.set('filter.brand', params.brand);
+    if (params.fulfillment) query.set('filter.fulfillment', params.fulfillment);
+    if (params.start != null) query.set('filter.start', String(params.start));
+    if (params.limit != null) query.set('filter.limit', String(params.limit));
 
-    const url = `${BASE_URL}/products?${params.toString()}`;
-    const data = await this.request<KrogerProductSearchResponse>(url);
+    const url = `${BASE_URL}/products?${query.toString()}`;
+    const data = await this.authenticatedGet<KrogerProductSearchResponse>(url);
 
     return data.data.map(toProductResult);
   }
 
   /**
-   * Get full product details by ID (scoped to a location for pricing).
+   * Get full product details by ID.
+   * Include locationId for price, availability, and aisle data.
    */
   async getProductDetails(
     productId: string,
-    locationId: string
+    locationId?: string
   ): Promise<ProductResult | null> {
-    const params = new URLSearchParams({
-      'filter.locationId': locationId,
-    });
+    const query = new URLSearchParams();
+    if (locationId) query.set('filter.locationId', locationId);
 
-    const url = `${BASE_URL}/products/${encodeURIComponent(productId)}?${params.toString()}`;
+    const qs = query.toString();
+    const url = `${BASE_URL}/products/${encodeURIComponent(productId)}${qs ? `?${qs}` : ''}`;
 
     try {
-      const data = await this.request<{ data: KrogerProduct }>(url);
+      const data = await this.authenticatedGet<KrogerProductDetailResponse>(url);
       return toProductResult(data.data);
     } catch (error) {
       log('warn', `Product not found: ${productId}`, error);
@@ -113,25 +152,152 @@ export class KrogerClient {
   // ---------------------------------------------------------------------------
 
   /**
-   * Search for store locations near a ZIP code.
+   * Search for store locations using official /v1/locations endpoint.
+   * At least one location filter should be provided (zipCode, latLong, lat+lon, or locationId).
    */
-  async searchLocations(
-    zipCode: string,
-    radiusMiles: number = 10,
-    chain: string = DEFAULT_CHAIN,
-    limit: number = 5
-  ): Promise<KrogerLocation[]> {
-    const params = new URLSearchParams({
-      'filter.zipCode.near': zipCode,
-      'filter.radiusInMiles': String(radiusMiles),
-      'filter.chain': chain,
-      'filter.limit': String(limit),
-    });
+  async searchLocations(params: LocationSearchParams): Promise<KrogerLocation[]> {
+    const query = new URLSearchParams();
 
-    const url = `${BASE_URL}/locations?${params.toString()}`;
-    const data = await this.request<KrogerLocationSearchResponse>(url);
+    if (params.zipCode) query.set('filter.zipCode.near', params.zipCode);
+    if (params.latLong) query.set('filter.latLong.near', params.latLong);
+    if (params.lat != null) query.set('filter.lat.near', String(params.lat));
+    if (params.lon != null) query.set('filter.lon.near', String(params.lon));
+    if (params.radiusInMiles != null) query.set('filter.radiusInMiles', String(params.radiusInMiles));
+    if (params.limit != null) query.set('filter.limit', String(params.limit));
+    if (params.chain) query.set('filter.chain', params.chain);
+    if (params.department) query.set('filter.department', params.department);
+    if (params.locationId) query.set('filter.locationId', params.locationId);
+
+    const url = `${BASE_URL}/locations?${query.toString()}`;
+    const data = await this.authenticatedGet<KrogerLocationSearchResponse>(url);
 
     return data.data;
+  }
+
+  /**
+   * Get details for a specific location by its ID.
+   */
+  async getLocationDetails(locationId: string): Promise<KrogerLocation | null> {
+    const url = `${BASE_URL}/locations/${encodeURIComponent(locationId)}`;
+
+    try {
+      const data = await this.authenticatedGet<KrogerLocationDetailResponse>(url);
+      return data.data;
+    } catch (error) {
+      log('warn', `Location not found: ${locationId}`, error);
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chains
+  // ---------------------------------------------------------------------------
+
+  /**
+   * List all Kroger-family chains.
+   */
+  async listChains(): Promise<KrogerChain[]> {
+    const url = `${BASE_URL}/chains`;
+    const data = await this.authenticatedGet<KrogerChainsResponse>(url);
+    return data.data;
+  }
+
+  /**
+   * Get details for a specific chain by name.
+   */
+  async getChainDetails(name: string): Promise<KrogerChain | null> {
+    const url = `${BASE_URL}/chains/${encodeURIComponent(name)}`;
+
+    try {
+      const data = await this.authenticatedGet<KrogerChainDetailResponse>(url);
+      return data.data;
+    } catch (error) {
+      log('warn', `Chain not found: ${name}`, error);
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Departments
+  // ---------------------------------------------------------------------------
+
+  /**
+   * List all departments.
+   */
+  async listDepartments(): Promise<KrogerDepartment[]> {
+    const url = `${BASE_URL}/departments`;
+    const data = await this.authenticatedGet<KrogerDepartmentsResponse>(url);
+    return data.data;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cart (requires customer token from Authorization Code flow)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Add items to an authenticated customer's cart.
+   *
+   * @param items - Array of cart items (upc, quantity, optional modality).
+   * @param customerToken - A customer-level access token (authorization code grant).
+   * @returns true on success (204 response).
+   */
+  async addToCart(items: KrogerCartItem[], customerToken: string): Promise<boolean> {
+    const url = `${BASE_URL}/cart/add`;
+    const requestBody: KrogerCartAddRequest = { items };
+
+    log('debug', `Kroger Cart API: adding ${items.length} item(s)`);
+
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${customerToken}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      const message = `Kroger Cart API error (${response.status}): ${errorBody}`;
+      log('error', message);
+      throw new Error(message);
+    }
+
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Identity (requires customer token from Authorization Code flow)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the profile ID of an authenticated customer.
+   *
+   * @param customerToken - A customer-level access token with profile.compact scope.
+   * @returns The identity profile containing the customer's profile ID.
+   */
+  async getProfile(customerToken: string): Promise<KrogerIdentityProfile> {
+    const url = `${BASE_URL}/identity/profile`;
+
+    log('debug', 'Kroger Identity API: fetching profile');
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${customerToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      const message = `Kroger Identity API error (${response.status}): ${errorBody}`;
+      log('error', message);
+      throw new Error(message);
+    }
+
+    return response.json() as Promise<KrogerIdentityProfile>;
   }
 
   // ---------------------------------------------------------------------------
@@ -139,9 +305,9 @@ export class KrogerClient {
   // ---------------------------------------------------------------------------
 
   /**
-   * Generic authenticated GET request.
+   * Generic authenticated GET request using client-credentials token.
    */
-  private async request<T>(url: string): Promise<T> {
+  private async authenticatedGet<T>(url: string): Promise<T> {
     const token = await this.auth.getClientToken();
 
     log('debug', `Kroger API request: ${url}`);
@@ -197,14 +363,19 @@ function toProductResult(product: KrogerProduct): ProductResult {
     description: product.description,
     brand: product.brand,
     price: firstItem?.price?.regular ?? null,
+    promoPrice: firstItem?.price?.promo ?? null,
     size: firstItem?.size ?? null,
     aisle,
     imageUrl,
+    inStock: firstItem?.inventory?.stockLevel
+      ? firstItem.inventory.stockLevel !== 'TEMPORARILY_OUT_OF_STOCK'
+      : null,
     fulfillment: firstItem?.fulfillment
       ? {
-          inStore: firstItem.fulfillment.inStore,
+          inStore: firstItem.fulfillment.instore,
           curbside: firstItem.fulfillment.curbside,
           delivery: firstItem.fulfillment.delivery,
+          shipToHome: firstItem.fulfillment.shiptohome,
         }
       : null,
   };
