@@ -5,15 +5,13 @@ import { log } from '../utils/logger.js';
 export function registerGroceryRunPrompt(server: McpServer): void {
   server.prompt(
     'grocery-run',
+    'Prepare for a grocery shopping trip. Reviews the current grocery list, organizes by store department, and provides shopping tips.',
     {
-      description: 'Prepare for a grocery shopping trip. Reviews the current grocery list, organizes by store department, and provides shopping tips.',
-      argsSchema: z.object({
-        store: z.enum(['king_soopers', 'safeway', 'walmart', 'instacart']).optional().describe(
-          'Which store to shop at. Affects department ordering and available products. Defaults to the household preferred store.',
-        ),
-      }),
+      store: z.enum(['king_soopers', 'safeway', 'walmart', 'instacart']).optional().describe(
+        'Which store to shop at. Affects department ordering and available products. Defaults to the household preferred store.',
+      ),
     },
-    (args) => {
+    (args, _extra) => {
       log('debug', 'Generating grocery-run prompt', args);
 
       const storeArg = args.store;

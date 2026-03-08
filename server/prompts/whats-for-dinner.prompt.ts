@@ -4,10 +4,8 @@ import { log } from '../utils/logger.js';
 export function registerWhatsForDinnerPrompt(server: McpServer): void {
   server.prompt(
     'whats-for-dinner',
-    {
-      description: "Check tonight's dinner plan. Shows what's scheduled, the recipe details, and any prep needed.",
-    },
-    () => {
+    "Check tonight's dinner plan. Shows what's scheduled, the recipe details, and any prep needed.",
+    (_extra) => {
       log('debug', 'Generating whats-for-dinner prompt');
 
       const today = new Date();

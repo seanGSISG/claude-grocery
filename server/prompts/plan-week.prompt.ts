@@ -5,18 +5,16 @@ import { log } from '../utils/logger.js';
 export function registerPlanWeekPrompt(server: McpServer): void {
   server.prompt(
     'plan-week',
+    'Plan meals for the upcoming week. Considers household preferences, dietary restrictions, budget, and optionally a theme or start date.',
     {
-      description: 'Plan meals for the upcoming week. Considers household preferences, dietary restrictions, budget, and optionally a theme or start date.',
-      argsSchema: z.object({
-        theme: z.string().optional().describe(
-          'Optional meal theme for the week, e.g. "Mediterranean", "Budget-friendly", "Kid-friendly", "Meal prep", "Comfort food", "Healthy", "Quick weeknight"',
-        ),
-        startDate: z.string().optional().describe(
-          'Start date for the meal plan in YYYY-MM-DD format. Defaults to the upcoming Monday.',
-        ),
-      }),
+      theme: z.string().optional().describe(
+        'Optional meal theme for the week, e.g. "Mediterranean", "Budget-friendly", "Kid-friendly", "Meal prep", "Comfort food", "Healthy", "Quick weeknight"',
+      ),
+      startDate: z.string().optional().describe(
+        'Start date for the meal plan in YYYY-MM-DD format. Defaults to the upcoming Monday.',
+      ),
     },
-    (args) => {
+    (args, _extra) => {
       log('debug', 'Generating plan-week prompt', args);
 
       const theme = args.theme;

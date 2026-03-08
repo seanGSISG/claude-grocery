@@ -5,15 +5,13 @@ import { log } from '../utils/logger.js';
 export function registerQuickMealPrompt(server: McpServer): void {
   server.prompt(
     'quick-meal',
+    'Suggest a quick meal based on what is likely on hand or easy to prepare. Considers dietary restrictions and optional constraints.',
     {
-      description: 'Suggest a quick meal based on what is likely on hand or easy to prepare. Considers dietary restrictions and optional constraints.',
-      argsSchema: z.object({
-        constraint: z.string().optional().describe(
-          'Optional constraint like "vegetarian", "under 20 minutes", "use chicken", "no cooking", "kids will eat it", "date night"',
-        ),
-      }),
+      constraint: z.string().optional().describe(
+        'Optional constraint like "vegetarian", "under 20 minutes", "use chicken", "no cooking", "kids will eat it", "date night"',
+      ),
     },
-    (args) => {
+    (args, _extra) => {
       log('debug', 'Generating quick-meal prompt', args);
 
       const constraint = args.constraint;
