@@ -19,12 +19,12 @@ export function registerStoreTools(server: McpServer, ctx: StoreToolsContext): v
         'profile zip code. Returns store details including address, phone, and departments.',
       inputSchema: {
         zipCode: z.string().optional().describe('Zip code to search near (uses household zip if omitted)'),
-        radiusMiles: z.number().optional().describe('Search radius in miles (default 10)'),
-        limit: z.number().int().min(1).max(25).optional().describe('Max results (default 5)'),
+        radiusInMiles: z.number().min(1).max(100).optional().describe('Search radius in miles (1-100, default 10)'),
+        limit: z.number().int().min(1).max(200).optional().describe('Max results (1-200, default 10)'),
         chain: z.string().optional().describe('Filter by chain name, e.g. "KingSoopers" (default: "KingSoopers")'),
       },
     },
-    async ({ zipCode, radiusMiles, limit, chain }) => {
+    async ({ zipCode, radiusInMiles, limit, chain }) => {
       if (!ctx.krogerClient) {
         return {
           content: [
@@ -64,12 +64,12 @@ export function registerStoreTools(server: McpServer, ctx: StoreToolsContext): v
           }
         }
 
-        const locations = await ctx.krogerClient.searchLocations(
-          resolvedZip,
-          radiusMiles || 10,
-          chain || 'KingSoopers',
-          limit || 5,
-        );
+        const locations = await ctx.krogerClient.searchLocations({
+          zipCode: resolvedZip,
+          radiusInMiles: radiusInMiles || 10,
+          chain: chain || 'KingSoopers',
+          limit: limit || 5,
+        });
 
         // Map KrogerLocation objects to a simplified response
         const stores = locations.map((loc) => ({
