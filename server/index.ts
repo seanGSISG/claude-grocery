@@ -37,6 +37,7 @@ export interface AppContext {
   recipeRepo: RecipeRepository;
   mealPlanRepo: MealPlanRepository;
   groceryListRepo: GroceryListRepository;
+  krogerAuth: KrogerAuth | null;
   krogerClient: KrogerClient | null;
   instacartClient: InstacartClient | null;
   walmartLinks: WalmartLinks;
@@ -63,12 +64,13 @@ async function main(): Promise<void> {
   const groceryListRepo = new GroceryListRepository(db);
 
   // --- 3. API clients (conditional on env vars) ------------------------------
+  let krogerAuth: KrogerAuth | null = null;
   let krogerClient: KrogerClient | null = null;
   const krogerClientId = process.env.KROGER_CLIENT_ID;
   const krogerClientSecret = process.env.KROGER_CLIENT_SECRET;
 
   if (krogerClientId && krogerClientSecret) {
-    const krogerAuth = new KrogerAuth(krogerClientId, krogerClientSecret);
+    krogerAuth = new KrogerAuth(krogerClientId, krogerClientSecret);
     krogerClient = new KrogerClient(krogerAuth);
     log('info', 'Kroger (King Soopers) integration enabled');
   } else {
@@ -99,6 +101,7 @@ async function main(): Promise<void> {
     recipeRepo,
     mealPlanRepo,
     groceryListRepo,
+    krogerAuth,
     krogerClient,
     instacartClient,
     walmartLinks,

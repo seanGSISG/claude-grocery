@@ -62,6 +62,7 @@ export function registerAllTools(server: McpServer, ctx: AppContext): void {
   registerGroceryOrderTools(server, {
     groceryListRepo: ctx.groceryListRepo,
     krogerClient: ctx.krogerClient,
+    krogerAuth: ctx.krogerAuth,
     instacartClient: ctx.instacartClient,
     walmartLinks: ctx.walmartLinks,
   });

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { GroceryListRepository } from '../db/repositories/grocery-list.repo.js';
 import type { KrogerClient } from '../integrations/kroger/kroger-client.js';
+import type { KrogerAuth } from '../integrations/kroger/kroger-auth.js';
 import type { InstacartClient } from '../integrations/instacart/instacart-client.js';
 import type { WalmartLinks } from '../integrations/walmart/walmart-links.js';
 import { log } from '../utils/logger.js';
@@ -9,6 +10,7 @@ import { log } from '../utils/logger.js';
 interface GroceryOrderToolsContext {
   groceryListRepo: GroceryListRepository;
   krogerClient: KrogerClient | null;
+  krogerAuth: KrogerAuth | null;
   instacartClient: InstacartClient | null;
   walmartLinks: WalmartLinks;
 }
@@ -44,11 +46,11 @@ export function registerGroceryOrderTools(server: McpServer, ctx: GroceryOrderTo
       }
 
       try {
-        const products = await ctx.krogerClient.searchProducts(
+        const products = await ctx.krogerClient.searchProducts({
           term,
           locationId,
-          limit || 10,
-        );
+          limit: limit || 10,
+        });
 
         return {
           content: [
@@ -83,22 +85,23 @@ export function registerGroceryOrderTools(server: McpServer, ctx: GroceryOrderTo
     'add_to_kroger_cart',
     {
       description:
-        'Note: Adding to the Kroger cart requires user-level OAuth authentication which is not yet ' +
-        'implemented. This tool is a placeholder. For now, use search_kroger_products to find items ' +
-        'and provide the user with product details to add manually.',
+        'Add items to an authenticated Kroger customer\'s cart. Requires customer OAuth ' +
+        'authentication (Authorization Code flow). If no customer token is provided, returns ' +
+        'the authorization URL for the customer to log in.',
       inputSchema: {
-        locationId: z.string().describe('Kroger location ID'),
         items: z
           .array(
             z.object({
-              upc: z.string().describe('Product UPC from search_kroger_products'),
+              upc: z.string().length(13).describe('Product UPC (13 characters) from search_kroger_products'),
               quantity: z.number().int().min(1).describe('Number of this item to add'),
+              modality: z.enum(['DELIVERY', 'PICKUP']).optional().describe('Fulfillment mode (default: PICKUP)'),
             })
           )
           .describe('Items to add to the cart'),
+        customerToken: z.string().optional().describe('Customer OAuth access token (if already authenticated)'),
       },
     },
-    async ({ locationId, items }) => {
+    async ({ items, customerToken }) => {
       if (!ctx.krogerClient) {
         return {
           content: [
@@ -113,22 +116,72 @@ export function registerGroceryOrderTools(server: McpServer, ctx: GroceryOrderTo
         };
       }
 
-      // Cart operations require user-level OAuth (authorization_code grant).
-      // The current client only has client_credentials (application-level) access.
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({
-              error: 'Cart operations require user-level OAuth authentication, which is not yet configured. ' +
-                'Use search_kroger_products to find items, then add them manually at kroger.com.',
-              locationId,
-              requestedItems: items,
-            }),
-          },
-        ],
-        isError: true,
-      };
+      // If no customer token, return the authorization URL
+      if (!customerToken) {
+        if (!ctx.krogerAuth) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  error: 'Kroger auth is not configured.',
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const redirectUri = process.env.KROGER_REDIRECT_URI || 'http://localhost:3000/callback';
+        const authUrl = ctx.krogerAuth.getAuthorizationUrl(redirectUri, [
+          'cart.basic:write',
+          'profile.compact',
+        ]);
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                status: 'authentication_required',
+                message: 'Customer must authenticate with Kroger to add items to cart. ' +
+                  'Visit the authorization URL below and provide the resulting access token.',
+                authorizationUrl: authUrl,
+                requestedItems: items,
+              }),
+            },
+          ],
+        };
+      }
+
+      // We have a customer token -- call the Cart API
+      try {
+        await ctx.krogerClient.addToCart(items, customerToken);
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                status: 'items_added_to_cart',
+                itemCount: items.length,
+                items,
+              }),
+            },
+          ],
+        };
+      } catch (error) {
+        log('error', 'add_to_kroger_cart failed', error);
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ error: String(error) }),
+            },
+          ],
+          isError: true,
+        };
+      }
     }
   );
 
