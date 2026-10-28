@@ -381,4 +381,6 @@ export interface KrogerTokenResponse {
   expires_in: number;
   token_type: string;
   refresh_token?: string;
+  /** Space-separated scopes actually granted (returned by the token endpoint). */
+  scope?: string;
 }

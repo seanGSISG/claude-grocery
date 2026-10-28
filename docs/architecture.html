@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grocery Agent Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #f6f5ef;
+    --surface: #ffffff;
+    --surface-2: #edeee4;
+    --border: #d9dbcd;
+    --border-strong: #c3c6b3;
+    --text: #1d211a;
+    --text-dim: #5d6355;
+    --text-faint: #8a9081;
+    --accent: #3c7a54;
+    --accent-soft: #e2eee6;
+    --accent2: #a9752f;
+    --accent2-soft: #f3e7d3;
+    --accent3: #955a3d;
+    --accent3-soft: #f1e0d3;
+    --code-bg: #edeee2;
+    --shadow: 0 1px 2px rgba(24, 28, 18, 0.05), 0 10px 28px rgba(24, 28, 18, 0.06);
+    --font-display: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12140e;
+      --surface: #191c14;
+      --surface-2: #1f2318;
+      --border: #333a29;
+      --border-strong: #454d38;
+      --text: #e8ebe0;
+      --text-dim: #9aa28c;
+      --text-faint: #6c7362;
+      --accent: #72c28e;
+      --accent-soft: rgba(114, 194, 142, 0.12);
+      --accent2: #dba75f;
+      --accent2-soft: rgba(219, 167, 95, 0.12);
+      --accent3: #d5926e;
+      --accent3-soft: rgba(213, 146, 110, 0.12);
+      --code-bg: #1d2116;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #12140e;
+    --surface: #191c14;
+    --surface-2: #1f2318;
+    --border: #333a29;
+    --border-strong: #454d38;
+    --text: #e8ebe0;
+    --text-dim: #9aa28c;
+    --text-faint: #6c7362;
+    --accent: #72c28e;
+    --accent-soft: rgba(114, 194, 142, 0.12);
+    --accent2: #dba75f;
+    --accent2-soft: rgba(219, 167, 95, 0.12);
+    --accent3: #d5926e;
+    --accent3-soft: rgba(213, 146, 110, 0.12);
+    --code-bg: #1d2116;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+
+  header.hero {
+    margin-bottom: 48px;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 2.6rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+
+  .dek {
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    max-width: 62ch;
+    margin: 0 0 24px;
+  }
+
+  .dek code, p code, li code, figcaption code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.05em 0.38em;
+  }
+
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .stat {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    box-shadow: var(--shadow);
+  }
+
+  .stat b {
+    font-family: var(--font-mono);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .stat span {
+    font-size: 0.82rem;
+    color: var(--text-faint);
+  }
+
+  section {
+    margin-top: 64px;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 24px;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.005em;
+  }
+
+  .section-num {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+  }
+
+  h3 {
+    font-family: var(--font-display);
+    font-size: 1.12rem;
+    font-weight: 600;
+    margin: 36px 0 6px;
+  }
+
+  h3 .path {
+    font-family: var(--font-mono);
+    font-weight: 400;
+    font-size: 0.82rem;
+    color: var(--text-faint);
+    margin-left: 8px;
+  }
+
+  p { margin: 0 0 14px; color: var(--text); }
+  p.muted { color: var(--text-dim); font-size: 0.95rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 20px;
+  }
+
+  .diagram-scroll {
+    overflow-x: auto;
+    padding: 4px 2px;
+  }
+
+  .diagram-scroll svg {
+    display: block;
+    min-width: 780px;
+    width: 100%;
+    height: auto;
+  }
+
+  figure { margin: 0; }
+
+  figcaption {
+    margin-top: 16px;
+    font-size: 0.92rem;
+    color: var(--text-dim);
+    max-width: 74ch;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 16px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  .legend .item { display: flex; align-items: center; gap: 7px; }
+  .legend .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+  .mermaid-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 20px;
+    overflow-x: auto;
+  }
+
+  .mermaid-wrap pre.mermaid {
+    min-width: 640px;
+    margin: 0;
+  }
+
+  .note {
+    display: flex;
+    gap: 10px;
+    background: var(--accent3-soft);
+    border: 1px solid var(--accent3);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 18px;
+    font-size: 0.92rem;
+  }
+
+  .note .tag {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent3);
+    flex: none;
+    padding-top: 2px;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  footer {
+    margin-top: 72px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  a { color: var(--accent); }
+
+  @media (max-width: 640px) {
+    .page { padding: 40px 16px 72px; }
+    section { margin-top: 48px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <p class="eyebrow">System reference · feat/kroger-agent</p>
+    <h1>Grocery Agent Architecture</h1>
+    <p class="dek">
+      How <code>claude-grocery</code> is put together: an MCP server that gives Claude Desktop
+      tools, resources, and prompts for weekly meal planning, backed by SQLite and three
+      grocery-store integrations.
+    </p>
+    <div class="stats">
+      <div class="stat"><b>13</b><span>tables</span></div>
+      <div class="stat"><b>17</b><span>tools</span></div>
+      <div class="stat"><b>4</b><span>resources</span></div>
+      <div class="stat"><b>4</b><span>prompts</span></div>
+      <div class="stat"><b>1</b><span>store integration</span></div>
+    </div>
+  </header>
+
+  <section id="architecture">
+    <div class="section-head">
+      <h2>How a request flows</h2>
+      <span class="section-num">01</span>
+    </div>
+
+    <div class="card">
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 1160 800" role="img" aria-label="Claude Desktop connects over stdio to the MCP interface layer (Tools, Resources, Prompts) registered in server/index.ts. Tools call down into Services, which call Repositories, which read and write SQLite. Tools also call the Kroger integration directly for product search and cart operations.">
+          <defs>
+            <marker id="arrow-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--text-faint)" />
+            </marker>
+            <marker id="arrow-ext" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--accent2)" />
+            </marker>
+          </defs>
+
+          <style>
+            .band-fill { fill: var(--surface); }
+            .band-stroke { stroke: var(--border-strong); stroke-width: 1.4; }
+            .band-label { fill: var(--text-faint); font: 600 10.5px var(--font-mono); letter-spacing: 0.09em; text-transform: uppercase; }
+            .chip-fill { fill: var(--surface-2); }
+            .chip-stroke { stroke: var(--border-strong); stroke-width: 1.2; }
+            .chip-title { fill: var(--text); font: 600 12.5px var(--font-display); }
+            .chip-sub { fill: var(--text-dim); font: 400 10.5px var(--font-mono); }
+            .node-title { fill: var(--text); font: 700 14px var(--font-display); text-anchor: middle; }
+            .node-sub { fill: var(--text-dim); font: 400 11px var(--font-mono); text-anchor: middle; }
+            .flow-line { stroke: var(--text-faint); stroke-width: 1.6; fill: none; }
+            .flow-label { fill: var(--text-dim); font: 500 11px var(--font-mono); }
+            .ext-line { stroke: var(--accent2); stroke-width: 1.5; fill: none; }
+            .ext-stroke { stroke: var(--accent2); stroke-width: 1.4; }
+            .core-stroke { stroke: var(--accent); stroke-width: 1.3; }
+            .new-stroke { stroke: var(--accent3); stroke-width: 1.3; }
+          </style>
+
+          <!-- Client -->
+          <rect x="320" y="24" width="240" height="56" rx="10" class="band-fill band-stroke" />
+          <text x="440" y="47" class="node-title">Claude Desktop</text>
+          <text x="440" y="65" class="node-sub">MCP host</text>
+
+          <line x1="440" y1="80" x2="440" y2="136" class="flow-line" marker-end="url(#arrow-neutral)" />
+          <text x="456" y="112" class="flow-label">stdio · JSON-RPC</text>
+
+          <!-- Interface band -->
+          <rect x="40" y="140" width="800" height="112" rx="14" class="band-fill band-stroke" />
+          <text x="58" y="160" class="band-label">MCP interface · server/index.ts</text>
+
+          <rect x="60" y="176" width="240" height="58" rx="8" class="chip-fill chip-stroke" />
+          <text x="180" y="200" class="chip-title" text-anchor="middle">Prompts</text>
+          <text x="180" y="218" class="chip-sub" text-anchor="middle">4 workflows</text>
+
+          <rect x="320" y="176" width="240" height="58" rx="8" class="chip-fill chip-stroke" />
+          <text x="440" y="200" class="chip-title" text-anchor="middle">Resources</text>
+          <text x="440" y="218" class="chip-sub" text-anchor="middle">4 read-only URIs</text>
+
+          <rect x="580" y="176" width="240" height="58" rx="8" class="chip-fill chip-stroke" />
+          <text x="700" y="200" class="chip-title" text-anchor="middle">Tools</text>
+          <text x="700" y="218" class="chip-sub" text-anchor="middle">17 actions</text>
+
+          <line x1="440" y1="252" x2="440" y2="298" class="flow-line" marker-end="url(#arrow-neutral)" />
+          <text x="456" y="279" class="flow-label">calls</text>
+
+          <!-- Services band -->
+          <rect x="40" y="300" width="800" height="190" rx="14" class="band-fill band-stroke" />
+          <text x="58" y="320" class="band-label">Services · business logic</text>
+
+          <rect x="60" y="336" width="240" height="40" rx="7" class="chip-fill core-stroke" />
+          <text x="180" y="361" class="chip-title" text-anchor="middle">grocery-list</text>
+
+          <rect x="320" y="336" width="240" height="40" rx="7" class="chip-fill core-stroke" />
+          <text x="440" y="361" class="chip-title" text-anchor="middle">meal-planner</text>
+
+          <rect x="580" y="336" width="240" height="40" rx="7" class="chip-fill core-stroke" />
+          <text x="700" y="361" class="chip-title" text-anchor="middle">budget</text>
+
+          <rect x="60" y="390" width="240" height="40" rx="7" class="chip-fill core-stroke" />
+          <text x="180" y="415" class="chip-title" text-anchor="middle">recipe-parser</text>
+
+          <rect x="320" y="390" width="240" height="40" rx="7" class="chip-fill core-stroke" />
+          <text x="440" y="415" class="chip-title" text-anchor="middle">unit-converter</text>
+
+          <rect x="580" y="390" width="240" height="40" rx="7" class="chip-fill new-stroke" />
+          <text x="700" y="415" class="chip-title" text-anchor="middle">purchase-history</text>
+
+          <rect x="60" y="444" width="240" height="40" rx="7" class="chip-fill new-stroke" />
+          <text x="180" y="469" class="chip-title" text-anchor="middle">receipt-details</text>
+
+          <rect x="320" y="444" width="240" height="40" rx="7" class="chip-fill new-stroke" />
+          <text x="440" y="469" class="chip-title" text-anchor="middle">night-classifier</text>
+
+          <rect x="580" y="444" width="240" height="40" rx="7" class="chip-fill new-stroke" />
+          <text x="700" y="469" class="chip-title" text-anchor="middle">week-planner</text>
+
+          <line x1="440" y1="490" x2="440" y2="538" class="flow-line" marker-end="url(#arrow-neutral)" />
+          <text x="456" y="518" class="flow-label">reads / writes</text>
+
+          <!-- Repositories band -->
+          <rect x="40" y="540" width="800" height="80" rx="14" class="band-fill band-stroke" />
+          <text x="58" y="560" class="band-label">Repositories · one per table family</text>
+
+          <rect x="60" y="568" width="140" height="38" rx="7" class="chip-fill chip-stroke" />
+          <text x="130" y="592" class="chip-title" text-anchor="middle" style="font-size:11.5px">household</text>
+
+          <rect x="215" y="568" width="140" height="38" rx="7" class="chip-fill chip-stroke" />
+          <text x="285" y="592" class="chip-title" text-anchor="middle" style="font-size:11.5px">pantry</text>
+
+          <rect x="370" y="568" width="140" height="38" rx="7" class="chip-fill chip-stroke" />
+          <text x="440" y="592" class="chip-title" text-anchor="middle" style="font-size:11.5px">recipe</text>
+
+          <rect x="525" y="568" width="140" height="38" rx="7" class="chip-fill chip-stroke" />
+          <text x="595" y="592" class="chip-title" text-anchor="middle" style="font-size:11.5px">meal-plan</text>
+
+          <rect x="680" y="568" width="140" height="38" rx="7" class="chip-fill chip-stroke" />
+          <text x="750" y="592" class="chip-title" text-anchor="middle" style="font-size:11.5px">grocery-list</text>
+
+          <line x1="440" y1="620" x2="440" y2="674" class="flow-line" marker-end="url(#arrow-neutral)" />
+          <text x="456" y="650" class="flow-label">SQL · synchronous</text>
+
+          <!-- Database -->
+          <rect x="320" y="676" width="240" height="60" rx="10" class="band-fill band-stroke" />
+          <text x="440" y="700" class="node-title">SQLite</text>
+          <text x="440" y="718" class="node-sub">better-sqlite3 · grocery.db</text>
+
+          <!-- Integrations column -->
+          <rect x="890" y="176" width="240" height="76" rx="12" class="chip-fill ext-stroke" />
+          <text x="1010" y="203" class="chip-title" text-anchor="middle">Kroger</text>
+          <text x="1010" y="221" class="chip-sub" text-anchor="middle">King Soopers</text>
+          <text x="1010" y="237" class="chip-sub" text-anchor="middle">products · cart (OAuth)</text>
+
+          <line x1="820" y1="205" x2="886" y2="205" class="ext-line" marker-end="url(#arrow-ext)" />
+        </svg>
+      </div>
+
+      <figcaption>
+        Claude Desktop speaks MCP over stdio to <code>server/index.ts</code>, which registers the
+        tool/resource/prompt handlers. Tools call down through services and repositories to
+        SQLite for everything local — but for grocery-store data, tools call the Kroger client
+        directly (not through a service). It needs two separate OAuth flows: client-credentials
+        for read-only product/store search, and an authorization-code customer login for cart
+        writes.
+      </figcaption>
+
+      <div class="legend">
+        <div class="item"><span class="swatch" style="background:var(--accent)"></span>Core services</div>
+        <div class="item"><span class="swatch" style="background:var(--accent3)"></span>Purchase-history subsystem (in progress)</div>
+        <div class="item"><span class="swatch" style="background:var(--accent2)"></span>External integration</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="schema">
+    <div class="section-head">
+      <h2>Database schema</h2>
+      <span class="section-num">02</span>
+    </div>
+    <p class="muted">
+      SQLite, migrated by raw <code>CREATE TABLE IF NOT EXISTS</code> statements plus a small
+      additive-column patcher in <code>server/db/schema.ts</code> (currently schema version 3).
+      Every table uses a TEXT <code>id</code> primary key (UUIDs), except the two purchase-history
+      tables keyed on Kroger's own identifiers.
+    </p>
+
+    <h3>Meal-planning core <span class="path">households → recipes → meal plans → grocery lists</span></h3>
+    <div class="mermaid-wrap">
+<pre class="mermaid">
+erDiagram
+    households ||--o{ household_members : "has"
+    households ||--o{ meal_plans : "owns"
+    recipes ||--o{ recipe_ingredients : "contains"
+    recipes ||--o{ meal_slots : "assigned to"
+    meal_plans ||--o{ meal_slots : "contains"
+    meal_slots |o--o| meal_slots : "leftover of"
+    meal_plans ||--o{ grocery_lists : "generates"
+    grocery_lists ||--o{ grocery_items : "contains"
+
+    households {
+        text id PK
+        text name
+        text default_diet
+        real budget_weekly
+        text preferred_store_id
+        text preferred_store_chain
+        text zip_code
+    }
+    household_members {
+        text id PK
+        text household_id FK
+        text name
+        text type "adult, child, toddler"
+        real serving_multiplier
+        text allergies "json array"
+        text dietary_restrictions "json array"
+        text disliked_ingredients "json array"
+    }
+    recipes {
+        text id PK
+        text title
+        text description
+        int servings
+        int prep_time_minutes
+        int cook_time_minutes
+        text instructions "json array"
+        text tags "json array"
+        text source_url
+        text dietary_flags "json array"
+    }
+    recipe_ingredients {
+        text id PK
+        text recipe_id FK
+        text name
+        text canonical_name
+        real quantity
+        text unit
+        text standard_unit
+        real standard_quantity
+        int optional
+        text department
+    }
+    meal_plans {
+        text id PK
+        text name
+        text start_date
+        text end_date
+        text household_id FK
+    }
+    meal_slots {
+        text id PK
+        text meal_plan_id FK
+        int day_index "0-6"
+        text meal_type "breakfast, lunch, dinner, snack"
+        text recipe_id FK
+        int is_leftover
+        text leftover_source_slot_id FK
+        real servings
+    }
+    grocery_lists {
+        text id PK
+        text meal_plan_id FK
+        text name
+        real total_estimated_cost
+        text store_id
+        text store_name
+    }
+    grocery_items {
+        text id PK
+        text grocery_list_id FK
+        text name
+        text canonical_name
+        real quantity
+        text unit
+        text department
+        text aisle_location
+        real estimated_price
+        text kroger_product_id
+        text kroger_upc
+        int checked
+        text source_recipe_ids "json array"
+    }
+    pantry_staples {
+        text id PK
+        text name
+        text canonical_name UK
+        text category
+        int is_default
+    }
+</pre>
+    </div>
+    <figcaption>
+      <code>meal_slots</code> is unique on <code>(meal_plan_id, day_index, meal_type)</code> — one
+      slot per meal per day — and self-references via <code>leftover_source_slot_id</code> when a
+      slot is marked <code>is_leftover</code> rather than holding its own recipe.
+      <code>pantry_staples</code> stands alone: it's excluded from grocery lists by
+      <code>canonical_name</code> match, not by a foreign key.
+    </figcaption>
+
+    <h3>Purchase history <span class="path">imported from kingsoopers.com, not the Kroger API</span></h3>
+    <div class="mermaid-wrap">
+<pre class="mermaid">
+erDiagram
+    purchase_receipts ||--o{ purchase_items : "contains"
+
+    purchase_receipts {
+        text receipt_key PK
+        text purchased_at
+        text purchase_type "DELIVERY, PICKUP, IN_STORE, FUEL"
+        text store_id
+        real total_usd
+        text status
+    }
+    purchase_items {
+        text receipt_key PK,FK
+        text upc PK
+        real quantity
+        real unit_price
+        real total_paid
+        real savings
+        text description
+        text size
+    }
+    purchase_upc_stats {
+        text upc PK
+        int basket_count
+        int basket_total
+        real frequency "basket_count / basket_total"
+        text first_seen
+        text last_seen
+        real median_gap_days
+        int is_staple
+        text description "resolved via Kroger Products API"
+        text brand
+        real last_price
+        text canonical_name "soft link to recipe_ingredients"
+        real avg_quantity
+    }
+</pre>
+    </div>
+    <figcaption>
+      <code>purchase_upc_stats</code> is a materialized rollup keyed on UPC, not a child row of
+      <code>purchase_items</code> — it's rebuilt by <code>server/cli/import-history.ts</code> on
+      every import, one row per UPC ever bought, with the frequency math that lets
+      <code>week-planner.service.ts</code> guess what's habitually restocked.
+    </figcaption>
+
+    <div class="note">
+      <span class="tag">Why two schemas</span>
+      <span>
+        Kroger's public API has no order-history endpoint. Item-level history only exists in
+        kingsoopers.com's internal web endpoints, captured by hand from the browser console
+        (see <code>docs/purchase-history.md</code>) and imported separately — so this domain has
+        no foreign key back into the meal-planning core. The only bridge is
+        <code>canonical_name</code>, matched in application code, not the database.
+      </span>
+    </div>
+  </section>
+
+  <section id="import-flow">
+    <div class="section-head">
+      <h2>Purchase-history import flow</h2>
+      <span class="section-num">03</span>
+    </div>
+    <p class="muted">
+      Kroger's public API has no order-history endpoint, so this data is captured by hand from
+      kingsoopers.com's internal web endpoints, then imported and optionally enriched against
+      the official Products API. See <code>docs/purchase-history.md</code> for the full capture
+      scripts.
+    </p>
+
+    <div class="card">
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 1140 440" role="img" aria-label="Purchase history is captured by hand from the browser console at kingsoopers.com, saved as two JSON files in the gitignored data directory, then imported by server/cli/import-history.ts into three SQLite tables. An optional resolve pass looks each UPC up against the Kroger Products API and writes brand, description, size and price back into purchase_upc_stats.">
+          <defs>
+            <marker id="pf-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--text-faint)" />
+            </marker>
+            <marker id="pf-arrow-ext" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--accent2)" />
+            </marker>
+          </defs>
+
+          <style>
+            .pf-band-fill { fill: var(--surface); }
+            .pf-band-stroke { stroke: var(--border-strong); stroke-width: 1.4; }
+            .pf-label { fill: var(--text-faint); font: 600 10px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
+            .pf-chip { fill: var(--surface-2); stroke: var(--border-strong); stroke-width: 1.2; }
+            .pf-chip-core { fill: var(--surface-2); stroke: var(--accent); stroke-width: 1.3; }
+            .pf-chip-new { fill: var(--surface-2); stroke: var(--accent3); stroke-width: 1.3; }
+            .pf-chip-ext { fill: var(--surface-2); stroke: var(--accent2); stroke-width: 1.3; stroke-dasharray: 5 4; }
+            .pf-title { fill: var(--text); font: 600 12px var(--font-display); }
+            .pf-sub { fill: var(--text-dim); font: 400 9.5px var(--font-mono); }
+            .pf-line { stroke: var(--text-faint); stroke-width: 1.6; fill: none; }
+            .pf-line-label { fill: var(--text-dim); font: 500 10.5px var(--font-mono); }
+            .pf-line-ext { stroke: var(--accent2); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+          </style>
+
+          <!-- Stage 1: Browser -->
+          <rect x="20" y="40" width="230" height="260" rx="12" class="pf-band-fill pf-band-stroke" />
+          <text x="36" y="60" class="pf-label">Browser console · signed in</text>
+
+          <rect x="34" y="76" width="202" height="76" rx="8" class="pf-chip" />
+          <text x="135" y="98" class="pf-title" text-anchor="middle">1. capture summary</text>
+          <text x="135" y="114" class="pf-sub" text-anchor="middle">GET purchase-history-search</text>
+          <text x="135" y="128" class="pf-sub" text-anchor="middle">(paged)</text>
+
+          <rect x="34" y="168" width="202" height="90" rx="8" class="pf-chip" />
+          <text x="135" y="190" class="pf-title" text-anchor="middle">2. capture details</text>
+          <text x="135" y="206" class="pf-sub" text-anchor="middle">POST purchase-history/v2/details</text>
+          <text x="135" y="220" class="pf-sub" text-anchor="middle">~2.5s / receipt, paced by hand</text>
+          <text x="135" y="238" class="pf-sub" text-anchor="middle">(bot-protection limit)</text>
+
+          <line x1="250" y1="170" x2="286" y2="170" class="pf-line" marker-end="url(#pf-arrow)" />
+          <text x="252" y="163" class="pf-line-label" style="font-size:9.5px">download JSON</text>
+
+          <!-- Stage 2: data/ -->
+          <rect x="290" y="40" width="200" height="260" rx="12" class="pf-band-fill pf-band-stroke" />
+          <text x="306" y="60" class="pf-label">data/ · gitignored</text>
+
+          <rect x="304" y="90" width="172" height="64" rx="8" class="pf-chip" />
+          <text x="390" y="114" class="pf-title" text-anchor="middle" style="font-size:11px">ks-purchase-</text>
+          <text x="390" y="128" class="pf-title" text-anchor="middle" style="font-size:11px">history.json</text>
+          <text x="390" y="144" class="pf-sub" text-anchor="middle">receipts + UPC list</text>
+
+          <rect x="304" y="170" width="172" height="64" rx="8" class="pf-chip" />
+          <text x="390" y="194" class="pf-title" text-anchor="middle" style="font-size:11px">ks-purchase-</text>
+          <text x="390" y="208" class="pf-title" text-anchor="middle" style="font-size:11px">details.json</text>
+          <text x="390" y="224" class="pf-sub" text-anchor="middle">qty · price · names</text>
+
+          <line x1="490" y1="170" x2="526" y2="170" class="pf-line" marker-end="url(#pf-arrow)" />
+          <text x="491" y="163" class="pf-line-label" style="font-size:9.5px">history:import</text>
+
+          <!-- Stage 3: CLI -->
+          <rect x="530" y="20" width="230" height="300" rx="12" class="pf-band-fill pf-band-stroke" />
+          <text x="546" y="40" class="pf-label">server/cli/import-history.ts</text>
+
+          <rect x="544" y="52" width="202" height="46" rx="8" class="pf-chip">
+          </rect>
+          <text x="645" y="72" class="pf-title" text-anchor="middle" style="font-size:11px">summarize()</text>
+          <text x="645" y="88" class="pf-sub" text-anchor="middle">purchase-history.service.ts</text>
+
+          <rect x="544" y="108" width="202" height="46" rx="8" class="pf-chip" />
+          <text x="645" y="128" class="pf-title" text-anchor="middle" style="font-size:11px">parseCapture() + detailStats()</text>
+          <text x="645" y="144" class="pf-sub" text-anchor="middle">receipt-details.service.ts</text>
+
+          <rect x="544" y="164" width="202" height="46" rx="8" class="pf-chip-core" />
+          <text x="645" y="184" class="pf-title" text-anchor="middle" style="font-size:11px">db.transaction()</text>
+          <text x="645" y="200" class="pf-sub" text-anchor="middle">insert / upsert, one commit</text>
+
+          <rect x="544" y="220" width="202" height="70" rx="8" class="pf-chip-ext" />
+          <text x="645" y="240" class="pf-title" text-anchor="middle" style="font-size:11px">--resolve loop</text>
+          <text x="645" y="256" class="pf-sub" text-anchor="middle">optional · per UPC</text>
+          <text x="645" y="270" class="pf-sub" text-anchor="middle">needs op run + client creds</text>
+          <text x="645" y="284" class="pf-sub" text-anchor="middle">60ms pace · limit 250 / run</text>
+
+          <line x1="760" y1="187" x2="796" y2="187" class="pf-line" marker-end="url(#pf-arrow)" />
+          <text x="761" y="180" class="pf-line-label" style="font-size:9.5px">INSERT / UPDATE</text>
+
+          <!-- Stage 4: SQLite -->
+          <rect x="800" y="40" width="220" height="260" rx="12" class="pf-band-fill pf-band-stroke" />
+          <text x="816" y="60" class="pf-label">SQLite</text>
+
+          <rect x="814" y="76" width="192" height="48" rx="8" class="pf-chip" />
+          <text x="910" y="105" class="pf-title" text-anchor="middle" style="font-size:11.5px">purchase_receipts</text>
+
+          <rect x="814" y="140" width="192" height="48" rx="8" class="pf-chip" />
+          <text x="910" y="169" class="pf-title" text-anchor="middle" style="font-size:11.5px">purchase_items</text>
+
+          <rect x="814" y="204" width="192" height="48" rx="8" class="pf-chip-new" />
+          <text x="910" y="233" class="pf-title" text-anchor="middle" style="font-size:11.5px">purchase_upc_stats</text>
+
+          <!-- Resolve branch to Kroger Products API -->
+          <line x1="655" y1="290" x2="655" y2="336" class="pf-line-ext" marker-end="url(#pf-arrow-ext)" />
+          <text x="666" y="318" class="pf-line-label" style="font-size:9.5px">GET product(upc)</text>
+
+          <rect x="544" y="340" width="222" height="64" rx="10" class="pf-chip-ext" />
+          <text x="655" y="364" class="pf-title" text-anchor="middle">Kroger Products API</text>
+          <text x="655" y="380" class="pf-sub" text-anchor="middle">client-credentials · read-only</text>
+          <text x="655" y="393" class="pf-sub" text-anchor="middle">needs KROGER_LOCATION_ID for price</text>
+
+          <path d="M766,370 H1104 V228 H1010" class="pf-line-ext" marker-end="url(#pf-arrow-ext)" />
+          <text x="900" y="416" class="pf-line-label" style="font-size:9.5px">UPDATE brand · desc · price</text>
+        </svg>
+      </div>
+
+      <figcaption>
+        Two capture scripts run by hand in the browser (paced to avoid the site's bot protection)
+        produce the two files in <code>data/</code>. <code>npm run history:import</code> loads
+        both in one transaction, computing per-UPC purchase frequency and a staple flag as it
+        goes. The <code>--resolve</code> pass is separate and optional — it calls the official
+        Kroger Products API once per UPC to fill in names, brands and current prices that the
+        scraped capture doesn't carry. <code>purchase_upc_stats</code> is what
+        <code>week-planner.service.ts</code> and <code>night-classifier.service.ts</code>
+        (see §01) read from to guess what's habitually restocked.
+      </figcaption>
+
+      <div class="legend">
+        <div class="item"><span class="swatch" style="background:var(--accent)"></span>Single-transaction write</div>
+        <div class="item"><span class="swatch" style="background:var(--accent3)"></span>Feeds the purchase-history subsystem</div>
+        <div class="item"><span class="swatch" style="background:var(--accent2); border-radius:2px; height:3px; width:14px; align-self:center;"></span>Optional · external API</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    server/index.ts · server/db/schema.ts · docs/purchase-history.md — reflects feat/kroger-agent, 2026-09-23
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+  });
+</script>
+</body>
+</html>

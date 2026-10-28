@@ -1,0 +1,22 @@
+# Recipes the family actually makes. One URL per line; # comments ignored.
+# Import with: npm run recipes:import
+https://www.goodhousekeeping.com/food-recipes/a61041561/grilled-vietnamese-style-pork-steaks-with-cilantro-cucumbers-recipe/
+https://www.saltandlavender.com/20-minute-thai-chicken-curry-soup/
+https://toriavey.com/lemony-marinated-chicken-skewers/
+https://www.food.com/recipe/taco-baked-potatoes-99824
+https://www.delish.com/cooking/recipe-ideas/recipes/a46530/spinach-pesto-penne-with-shrimp-and-peas-recipe/
+https://www.cookingclassy.com/grilled-greek-lemon-chicken/
+https://natashaskitchen.com/avocado-corn-salad/
+https://www.delish.com/cooking/recipe-ideas/a69500138/best-crock-pot-chicken-marsala-recipe/
+
+# Blocked by Cloudflare from the cloud container; usually fine from a home IP.
+https://www.mamagourmand.com/gluten-free-meatloaf/
+https://www.thecountrycook.net/taco-potatoes/
+
+# No recipe markup — these need manual entry via the save_recipe tool:
+#   https://www.youtube.com/shorts/V-eHFm7BQOY        (video)
+#   https://www.pinterest.com/pin/189714203044670710/ (pin)
+#   https://www.pinterest.com/pin/189714203042243673/ (pin)
+#   https://www.reddit.com/r/food/comments/j9fhpj/homemade_mongolian_beef/ (post)
+#   https://www.facebook.com/reel/1813503292235645    (video)
+https://www.eatingwell.com/recipe/250222/sweet-potato-black-bean-chili/

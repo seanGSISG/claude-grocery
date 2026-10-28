@@ -1,0 +1,8 @@
+apiVersion: v2
+name: meal-planner
+description: Plans the family's week from their calendars and fills a King Soopers cart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [grocery, slack, kroger]
+home: https://github.com/tya/claude-grocery-kroger-agent

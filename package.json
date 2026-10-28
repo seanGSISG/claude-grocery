@@ -9,16 +9,23 @@
     "dev": "tsc --watch",
     "start": "node server/dist/index.js",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json",
     "test:watch": "vitest",
     "inspect": "npx @modelcontextprotocol/inspector node server/dist/index.js",
-    "inspect:dev": "npx @modelcontextprotocol/inspector node --env-file=.env server/dist/index.js"
+    "inspect:dev": "npx @modelcontextprotocol/inspector node --env-file=.env server/dist/index.js",
+    "kroger:auth": "npm run build && node server/dist/cli/kroger-auth.js",
+    "kroger:smoke": "npm run build && node server/dist/cli/kroger-smoke.js",
+    "history:import": "npm run build && node server/dist/cli/import-history.js",
+    "recipes:import": "npm run build && node server/dist/cli/import-recipes.js",
+    "plan:week": "npm run build && node server/dist/cli/plan-week.js",
+    "slack:dev": "npm run build && node server/dist/slack/start.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
-    "better-sqlite3": "^11.8.1",
+    "better-sqlite3": "^13.0.3",
     "uuid": "^11.1.0",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "@slack/bolt": "^4.2.0"
   },
   "devDependencies": {
     "@modelcontextprotocol/inspector": "^0.21.1",

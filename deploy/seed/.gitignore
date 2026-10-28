@@ -1,0 +1,5 @@
+# The database and the Kroger refresh token pass through here on their way to
+# the volume. Never commit either: one is two years of purchase history, the
+# other is a live credential.
+*
+!.gitignore

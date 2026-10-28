@@ -255,9 +255,45 @@ export function normalizeIngredientName(name: string): string {
     .toLowerCase()
     .trim()
     .replace(/[,;]+$/, '')          // Remove trailing punctuation
-    .replace(/\s+/g, ' ')           // Normalize whitespace
     .replace(/\(.*?\)/g, '')        // Remove parenthetical notes
+    // Measure fragments the recipe parser leaves behind: "c. cornstarch",
+    // ". fresh thyme leaves", "to 3 tbsp lime juice", "1 1/2 lb ground beef".
+    .replace(/^[\s.,-]+/, '')
+    .replace(/^(?:to\s+)?\d+[\d\s/.-]*/, '')
+    .replace(/^(?:c|tbsp?|tsp?|oz|lb|lbs|g|kg|ml|l|cup|cups|tablespoons?|teaspoons?|pounds?|ounces?|cloves?|cans?|packages?|handfuls?|heaping|generous|pinch(?:es)?)\.?\s+/, '')
+    .replace(/^(?:juice|zest)\s+of\s+/, '')
+    .replace(/\s+/g, ' ')           // Normalize whitespace
     .trim();
+
+  // Strip preparation words and stray measure tokens wherever they appear, so
+  // "minced fresh garlic", "garlic cloves" and "garlic" become one line.
+  const DROP_TOKENS = new Set([
+    // NB: 'dried', 'frozen', 'canned' and 'cooked' stay — dried oregano is a
+    // different product from fresh, and you buy cooked chicken off a different shelf.
+    'fresh', 'freshly', 'organic', 'uncooked',
+    'minced', 'grated', 'peeled', 'chopped', 'diced', 'sliced', 'crushed', 'shredded', 'julienned',
+    'squeezed', 'heaping', 'generous', 'packed', 'divided', 'optional', 'hot', 'cold', 'warm',
+    'handful', 'envelope', 'package', 'bunch', 'can', 'jar', 'box', 'bag', 'container',
+    // Serving shapes, not ingredients: "lime wedges" is limes, "cilantro
+    // sprigs" is cilantro. NB 'leaves' stays — "bay leaves" is not "bay".
+    'wedge', 'wedges', 'sprig', 'sprigs', 'slice', 'slices', 'strip', 'strips',
+    'half', 'halves', 'quarter', 'quarters', 'garnish', 'garnishing', 'serving', 'topping',
+    'c', 'oz', 'lb', 'lbs', 'g', 'kg', 'ml', 'tbsp', 'tsp', 'cup', 'cups',
+    'tablespoon', 'tablespoons', 'teaspoon', 'teaspoons', 'pound', 'pounds', 'ounce', 'ounces',
+  ]);
+
+  const stripped = cleaned
+    .split(' ')
+    .map((token) => token.replace(/[.,]+$/, ''))
+    .filter((token) => token && !DROP_TOKENS.has(token) && !/^\d+([./]\d+)?$/.test(token))
+    .join(' ')
+    .trim();
+
+  const base = stripped || cleaned;
+
+  if (SYNONYM_MAP[base]) {
+    return SYNONYM_MAP[base];
+  }
 
   // Check synonym map
   if (SYNONYM_MAP[cleaned]) {
@@ -265,15 +301,31 @@ export function normalizeIngredientName(name: string): string {
   }
 
   // Try without common prefixes
-  const withoutPrefixes = cleaned
-    .replace(/^(fresh|dried|frozen|canned|organic|large|medium|small|whole|ground|minced|chopped|diced|sliced|crushed|grated|shredded)\s+/, '');
+  const withoutPrefixes = base
+    // NB: dried, frozen and canned are NOT stripped here — they name a
+    // different product, and stripping them turned "dried basil" into the
+    // fresh-basil synonym, i.e. a pantry item into a shopping line.
+    .replace(/^(fresh|organic|large|medium|small|whole|ground|minced|chopped|diced|sliced|crushed|grated|shredded)\s+/, '');
 
   if (SYNONYM_MAP[withoutPrefixes]) {
     return SYNONYM_MAP[withoutPrefixes];
   }
 
-  // Default: convert to snake_case
-  return cleaned.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  // Default: convert to snake_case, then collapse the variants that would
+  // otherwise split one shopping line into three ("garlic cloves", "large
+  // clove garlic", "garlic").
+  const snake = base
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+
+  const collapsed = snake
+    .replace(/^(large|small|medium|jumbo|whole|heaping|generous|handful_of|bunch_of)_/, '')
+    .replace(/_(cloves?|sprigs?|heads?|bunch(es)?|leaves|wedges)$/, '')
+    .replace(/^(cloves?|sprigs?|heads?|bunch(es)?)_/, '');
+
+  return SYNONYM_MAP[collapsed.replace(/_/g, ' ')] ?? collapsed;
 }
 
 export function getDisplayName(canonicalName: string): string {

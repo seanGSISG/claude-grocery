@@ -1,0 +1,76 @@
+# One pod, one volume, no inbound ports.
+
+image:
+  # The node resolves localhost:32000 to its own registry, so this is correct
+  # even when the push came from another machine as pi1.tynet.us:32000.
+  repository: localhost:32000/meal-planner
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Post the week as soon as the pod starts. Useful as an end-to-end smoke test;
+# turn it off once something else schedules the Saturday push.
+pushOnStart: true
+
+onePassword:
+  # A service account cannot read a personal vault, so this is never "Private".
+  vault: tynet
+  # Each item becomes a Secret named after the key below. The operator restarts
+  # this Deployment itself when an item changes.
+  items:
+    kroger-credentials: kroger.developer
+    slack-credentials: slack.mealplanner
+  autoRestart: true
+
+# Which Secret key holds which environment variable. Mapped explicitly so the
+# field names stay readable in 1Password and correct in the app.
+env:
+  KROGER_CLIENT_ID: { secret: kroger-credentials, key: client_id }
+  KROGER_CLIENT_SECRET: { secret: kroger-credentials, key: client_secret }
+  SLACK_BOT_TOKEN: { secret: slack-credentials, key: bot_token }
+  SLACK_APP_TOKEN: { secret: slack-credentials, key: app_token }
+  SLACK_USER_ID: { secret: slack-credentials, key: user_id }
+  SLACK_ALLOWED_USERS: { secret: slack-credentials, key: allowed_users }
+  SLACK_CHANNEL: { secret: slack-credentials, key: channel_id }
+
+config:
+  TZ: America/Denver
+  ZIP_CODE: "80126"
+  # Wildcat Reserve, 2205 W Wildcat Reserve Pkwy, Highlands Ranch
+  KROGER_LOCATION_ID: "62000008"
+  KROGER_REDIRECT_URI: http://localhost:8000/callback
+  WEEKLY_BUDGET_SOFT: "425"
+  WEEKLY_BUDGET_HARD: "500"
+
+persistence:
+  enabled: true
+  size: 2Gi
+  # hostpath-storage pins the volume to whichever node ran the pod first.
+  storageClass: microk8s-hostpath
+  existingClaim: ""
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  # An OOM kill mid-approval is the one failure with real-world cost, so the
+  # ceiling is generous rather than tight.
+  limits: { cpu: "1", memory: 512Mi }
+
+# On a multi-node cluster, pin this to the node holding the SSD — hostpath
+# storage cannot follow a reschedule. pi1 is that node: it's where
+# hostpath-storage was enabled and where every other hostpath-backed
+# workload (tynet-cloud-init, the hostpath-provisioner pod itself) already
+# runs.
+nodeSelector:
+  kubernetes.io/hostname: pi1
+tolerations: []
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile: { type: RuntimeDefault }
+
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities: { drop: ["ALL"] }

@@ -1,0 +1,24 @@
+{{ .Chart.Name }} {{ .Chart.Version }} installed as {{ .Release.Name }} in {{ .Release.Namespace }}.
+
+Watch it come up:
+
+  microk8s kubectl -n {{ .Release.Namespace }} get pod,pvc,onepassworditem
+  microk8s kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "meal-planner.fullname" . }}
+
+{{ if .Values.pushOnStart -}}
+pushOnStart is on, so a plan should appear in Slack shortly. That is the real
+end-to-end test: if it posts, the image, the volume, the secrets and both API
+credentials all work.
+{{- end }}
+
+If the pod stays in CreateContainerConfigError, the secrets have not synced yet.
+Almost always one of:
+
+  - the item is still in a personal vault, which a service account cannot read
+  - the service account was not granted the {{ .Values.onePassword.vault }} vault
+  - the item name does not match the itemPath
+
+  microk8s kubectl -n onepassword logs deploy/onepassword-connect-operator --tail=20
+
+The volume is annotated helm.sh/resource-policy: keep, so `helm uninstall` will
+NOT delete the database. Remove the PVC by hand if you really mean to.

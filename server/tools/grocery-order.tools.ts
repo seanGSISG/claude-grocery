@@ -6,6 +6,7 @@ import type { KrogerAuth } from '../integrations/kroger/kroger-auth.js';
 import type { InstacartClient } from '../integrations/instacart/instacart-client.js';
 import type { WalmartLinks } from '../integrations/walmart/walmart-links.js';
 import { log } from '../utils/logger.js';
+import { KrogerTokenStore } from '../integrations/kroger/token-store.js';
 
 interface GroceryOrderToolsContext {
   groceryListRepo: GroceryListRepository;
@@ -116,8 +117,33 @@ export function registerGroceryOrderTools(server: McpServer, ctx: GroceryOrderTo
         };
       }
 
-      // If no customer token, return the authorization URL
-      if (!customerToken) {
+      // Prefer the token saved by `npm run kroger:auth`; fall back to the
+      // authorization URL only when no token file exists yet.
+      let token = customerToken;
+      if (!token && ctx.krogerAuth) {
+        const store = new KrogerTokenStore(ctx.krogerAuth);
+        if (store.hasToken()) {
+          try {
+            token = await store.getAccessToken();
+          } catch (error) {
+            log('error', 'Stored Kroger customer token could not be refreshed', error);
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    error: 'Stored Kroger token is no longer valid. Re-run `npm run kroger:auth`.',
+                  }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+      }
+
+      // Still nothing -- hand back the authorization URL
+      if (!token) {
         if (!ctx.krogerAuth) {
           return {
             content: [
@@ -132,7 +158,7 @@ export function registerGroceryOrderTools(server: McpServer, ctx: GroceryOrderTo
           };
         }
 
-        const redirectUri = process.env.KROGER_REDIRECT_URI || 'http://localhost:3000/callback';
+        const redirectUri = process.env.KROGER_REDIRECT_URI || 'http://localhost:8000/callback';
         const authUrl = ctx.krogerAuth.getAuthorizationUrl(redirectUri, [
           'cart.basic:write',
           'profile.compact',
@@ -156,7 +182,7 @@ export function registerGroceryOrderTools(server: McpServer, ctx: GroceryOrderTo
 
       // We have a customer token -- call the Cart API
       try {
-        await ctx.krogerClient.addToCart(items, customerToken);
+        await ctx.krogerClient.addToCart(items, token);
 
         return {
           content: [

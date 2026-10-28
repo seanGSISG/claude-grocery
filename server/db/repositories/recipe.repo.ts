@@ -62,6 +62,14 @@ export class RecipeRepository {
     return rows.map(r => this.hydrate(r));
   }
 
+  /** Whether this URL has already been imported. */
+  findBySourceUrl(sourceUrl: string): Recipe | null {
+    const row = this.db
+      .prepare('SELECT * FROM recipes WHERE source_url = ? LIMIT 1')
+      .get(sourceUrl) as Record<string, unknown> | undefined;
+    return row ? this.hydrate(row) : null;
+  }
+
   create(input: RecipeInput): Recipe {
     const id = uuidv4();
     const now = new Date().toISOString();

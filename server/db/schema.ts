@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { log } from '../utils/logger.js';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 5;
 
 const CREATE_TABLES = `
   -- Schema version tracking
@@ -133,6 +133,85 @@ const CREATE_TABLES = `
   CREATE INDEX IF NOT EXISTS idx_grocery_items_list
     ON grocery_items(grocery_list_id);
 
+  -- Purchase history imported from kingsoopers.com (schema v2)
+  CREATE TABLE IF NOT EXISTS purchase_receipts (
+    receipt_key TEXT PRIMARY KEY,
+    purchased_at TEXT NOT NULL,
+    purchase_type TEXT NOT NULL,      -- DELIVERY | PICKUP | IN_STORE | FUEL
+    store_id TEXT,
+    total_usd REAL,
+    status TEXT,
+    imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_purchase_receipts_date
+    ON purchase_receipts(purchased_at);
+
+  CREATE TABLE IF NOT EXISTS purchase_items (
+    receipt_key TEXT NOT NULL REFERENCES purchase_receipts(receipt_key) ON DELETE CASCADE,
+    upc TEXT NOT NULL,
+    quantity REAL,                      -- from the receipt-detail capture, when available
+    unit_price REAL,
+    total_paid REAL,
+    savings REAL,
+    description TEXT,
+    size TEXT,
+    PRIMARY KEY (receipt_key, upc)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_purchase_items_upc
+    ON purchase_items(upc);
+
+  -- One row per UPC ever bought: how often, and what it is.
+  CREATE TABLE IF NOT EXISTS purchase_upc_stats (
+    upc TEXT PRIMARY KEY,
+    basket_count INTEGER NOT NULL,      -- delivery/pickup baskets containing it
+    basket_total INTEGER NOT NULL,      -- baskets considered
+    frequency REAL NOT NULL,            -- basket_count / basket_total
+    first_seen TEXT NOT NULL,
+    last_seen TEXT NOT NULL,
+    median_gap_days REAL,               -- typical days between purchases
+    is_staple INTEGER NOT NULL DEFAULT 0,
+    description TEXT,                   -- resolved from the Kroger Products API
+    brand TEXT,
+    size TEXT,
+    last_price REAL,
+    canonical_name TEXT,                -- normalized ingredient name, when it maps
+    resolved_at TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_purchase_upc_stats_canonical
+    ON purchase_upc_stats(canonical_name);
+
+  -- What the agent put in the Kroger cart, per week. The Cart API is add-only
+  -- and cannot be read back, so this is the only record of what was sent.
+  CREATE TABLE IF NOT EXISTS cart_ledger (
+    week_start TEXT NOT NULL,
+    upc TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    added_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (week_start, upc)
+  );
+
+  -- Bad matches reported from Slack ("wrong: boston butt"). Two jobs: never
+  -- pick that product for that ingredient again, and give the humans a list of
+  -- what the matcher gets wrong.
+  CREATE TABLE IF NOT EXISTS match_feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    canonical_name TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    rejected_upc TEXT,
+    rejected_description TEXT,
+    search_term TEXT,
+    note TEXT,
+    reported_by TEXT,
+    week_start TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_match_feedback_canonical
+    ON match_feedback(canonical_name);
+
   -- Pantry staples
   CREATE TABLE IF NOT EXISTS pantry_staples (
     id TEXT PRIMARY KEY,
@@ -143,11 +222,34 @@ const CREATE_TABLES = `
   );
 `;
 
+/** Columns added after a table first shipped; ALTER is a no-op when present. */
+const ADDED_COLUMNS: Array<[table: string, column: string, ddl: string]> = [
+  ['purchase_items', 'quantity', 'REAL'],
+  ['purchase_items', 'unit_price', 'REAL'],
+  ['purchase_items', 'total_paid', 'REAL'],
+  ['purchase_items', 'savings', 'REAL'],
+  ['purchase_items', 'description', 'TEXT'],
+  ['purchase_items', 'size', 'TEXT'],
+  ['purchase_upc_stats', 'avg_quantity', 'REAL'],
+];
+
+function addMissingColumns(db: Database.Database): void {
+  for (const [table, column, ddl] of ADDED_COLUMNS) {
+    const exists = (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>)
+      .some((c) => c.name === column);
+    if (!exists) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+      log('info', `Added column ${table}.${column}`);
+    }
+  }
+}
+
 export function runMigrations(db: Database.Database): void {
   log('info', 'Running database migrations...');
 
   // Create tables
   db.exec(CREATE_TABLES);
+  addMissingColumns(db);
 
   // Check current version
   const versionRow = db.prepare(

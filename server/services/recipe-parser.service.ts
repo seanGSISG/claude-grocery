@@ -366,6 +366,54 @@ function findRecipesInJsonLd(data: any): JsonLdRecipe[] {
  * Fetches the HTML page, extracts JSON-LD structured data,
  * and converts it to a RecipeInput.
  */
+/**
+ * Recipe sites sit behind different bot filters, and they disagree about what
+ * looks suspicious: Cloudflare sites here reject a Chrome user agent coming
+ * from a datacentre IP, while Hearst sites reject unknown agents. Try the
+ * honest one first, then the browser one.
+ */
+const USER_AGENTS = [
+  'Claude-Grocery/1.0 Recipe Parser',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+];
+
+/**
+ * How long to wait for one attempt.
+ *
+ * Node's fetch has no default timeout, and a site that accepts the connection
+ * and then never answers will hang the import for ever — which is exactly what
+ * a bot-hostile recipe site does. Every attempt gets a deadline.
+ */
+const FETCH_TIMEOUT_MS = Number(process.env.RECIPE_FETCH_TIMEOUT_MS ?? 20_000);
+
+async function fetchRecipeHtml(url: string): Promise<string | null> {
+  let lastStatus = 0;
+  for (const userAgent of USER_AGENTS) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        headers: {
+          'User-Agent': userAgent,
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
+      if (response.ok) return response.text();
+      lastStatus = response.status;
+      log('debug', `Recipe fetch ${response.status} with agent "${userAgent.slice(0, 24)}..."`);
+    } catch (error) {
+      const timedOut = error instanceof Error && error.name === 'TimeoutError';
+      log(
+        timedOut ? 'warn' : 'debug',
+        timedOut ? `Recipe fetch timed out after ${FETCH_TIMEOUT_MS}ms: ${url}` : `Recipe fetch threw for ${url}`,
+        timedOut ? undefined : error
+      );
+    }
+  }
+  log('error', `Failed to fetch recipe URL (last status ${lastStatus}): ${url}`);
+  return null;
+}
+
 export class RecipeParserService {
   /**
    * Parse a recipe from a URL by fetching the page and extracting JSON-LD data.
@@ -375,25 +423,8 @@ export class RecipeParserService {
   async parseFromUrl(url: string): Promise<RecipeInput | null> {
     log('info', `Parsing recipe from URL: ${url}`);
 
-    let html: string;
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Claude-Grocery/1.0 Recipe Parser',
-          'Accept': 'text/html,application/xhtml+xml',
-        },
-      });
-
-      if (!response.ok) {
-        log('error', `Failed to fetch URL: ${response.status} ${response.statusText}`);
-        return null;
-      }
-
-      html = await response.text();
-    } catch (error) {
-      log('error', `Failed to fetch recipe URL: ${url}`, error);
-      return null;
-    }
+    const html = await fetchRecipeHtml(url);
+    if (html === null) return null;
 
     // Extract JSON-LD blocks
     const jsonLdBlocks = this.extractJsonLdBlocks(html);
@@ -428,7 +459,9 @@ export class RecipeParserService {
    */
   private extractJsonLdBlocks(html: string): string[] {
     const blocks: string[] = [];
-    const pattern = /<script\s+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+    // `type` is not always the first attribute: WordPress and Hearst sites write
+    // <script id="..." class="..." type="application/ld+json">.
+    const pattern = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
 
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(html)) !== null) {

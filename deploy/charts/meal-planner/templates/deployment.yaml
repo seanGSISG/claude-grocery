@@ -1,0 +1,67 @@
+# One process. Not "one for now" — one as an invariant.
+#
+# Two replicas would each hold their own Socket Mode connection, so Slack would
+# deliver every message twice, and both would add to the same King Soopers cart.
+# The Cart API only adds; it cannot read back or clear, so a duplicate order is
+# fixed by hand in the app or not at all. Recreate rather than RollingUpdate for
+# the same reason: a rolling update overlaps the pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "meal-planner.fullname" . }}
+  labels: {{- include "meal-planner.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {{- include "meal-planner.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "meal-planner.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: meal-planner
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.pushOnStart }}
+          args: ["--push"]
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "meal-planner.fullname" . }}-config
+          env:
+            {{- range $name, $ref := .Values.env }}
+            - name: {{ $name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ref.secret }}
+                  key: {{ $ref.key }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          # No probes on purpose: the agent serves no HTTP, so there is nothing
+          # to GET, and a liveness check on the process would not notice the one
+          # thing that actually breaks — a dropped Slack socket, which Bolt
+          # reconnects by itself.
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "meal-planner.claimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+# Deliberately no Service: Socket Mode dials out, so nothing needs to reach in.

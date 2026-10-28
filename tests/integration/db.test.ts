@@ -66,12 +66,13 @@ describe('Database integration', () => {
     it('upserts and retrieves a household', () => {
       const household = repo.upsert({
         zipCode: '80202',
-        weeklyBudget: 150,
+        budgetWeekly: 150,
       });
 
       expect(household).toBeDefined();
       expect(household.id).toBeDefined();
       expect(household.zipCode).toBe('80202');
+      expect(household.budgetWeekly).toBe(150);
 
       const retrieved = repo.get();
       expect(retrieved).toBeDefined();
@@ -81,10 +82,11 @@ describe('Database integration', () => {
     it('updates an existing household', () => {
       const updated = repo.upsert({
         zipCode: '80210',
-        weeklyBudget: 200,
+        budgetWeekly: 200,
       });
 
       expect(updated.zipCode).toBe('80210');
+      expect(updated.budgetWeekly).toBe(200);
 
       const retrieved = repo.get();
       expect(retrieved!.zipCode).toBe('80210');
@@ -263,5 +265,37 @@ describe('Database integration', () => {
       repo.delete(plan.id);
       expect(repo.getById(plan.id)).toBeNull();
     });
+  });
+});
+
+describe('not importing the same recipe twice', () => {
+  // create() is a plain insert, so the import has to check first. Without this,
+  // re-running `make recipes` adds a second copy of every recipe already in the
+  // library, and a library holding the same dish twice skews what gets planned.
+  let ownDb: Database.Database;
+
+  beforeAll(() => {
+    ownDb = new Database(':memory:');
+    runMigrations(ownDb);
+  });
+
+  afterAll(() => ownDb.close());
+
+  it('finds a recipe by the URL it came from', () => {
+    const repo = new RecipeRepository(ownDb);
+    const sourceUrl = 'https://example.com/sweet-potato-black-bean-chili';
+
+    expect(repo.findBySourceUrl(sourceUrl)).toBeNull();
+
+    repo.create({
+      title: 'Sweet Potato Black Bean Chili',
+      servings: 6,
+      prepTimeMinutes: 15, cookTimeMinutes: 30,
+      ingredients: [], instructions: ['cook'], tags: [],
+      sourceUrl, dietaryFlags: [],
+    });
+
+    expect(repo.findBySourceUrl(sourceUrl)?.title).toBe('Sweet Potato Black Bean Chili');
+    expect(repo.findBySourceUrl('https://example.com/something-else')).toBeNull();
   });
 });
